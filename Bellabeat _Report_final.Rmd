@@ -1,0 +1,460 @@
+---
+title: "Smart Device Fitness Data Trends"
+subtitle: "Unlocking growth opportunities for Bellabeat"
+author: "Presentation by: Emeka Phil-ebosie"
+date: "1/22/2022"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+
+```{r Library Loading, results='hide', message=FALSE, echo = FALSE}
+# Loading the necessary packages. 
+
+library("tidyverse")
+library("lubridate")
+library("here")
+library("janitor")
+library("dplyr")
+library("ggplot2")
+library("RColorBrewer")
+library("plotly")
+```
+
+
+```{r Data loading and cleaning, message=FALSE, echo=FALSE, results='hide'}
+# This section loads the data and does some  cleaning before processing. 
+# Preliminary inspections are done to determine the metrics logged. 
+# Sum or average (which is applicable) is created for each user for each day in the overview_df
+# Averages per day are then created with in the daily_average_df
+ 
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/dailyActivity_merged.csv")
+df$ActivityDate <- as.Date(df$ActivityDate, "%m/%d/%Y")
+distance_df <- df
+daily_user_df <-
+  distance_df %>% 
+  drop_na(TotalDistance) %>%
+  group_by(user_id = Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(total_distance = sum(TotalDistance))
+overview_df <- daily_user_df
+daily_average_df <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_distance = mean(total_distance))
+
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/minuteCaloriesNarrow_merged.csv")
+df$ActivityMinute <- as.Date(df$ActivityMinute, "%m/%d/%Y")
+calories_df <- df %>%
+  rename(ActivityDate = ActivityMinute)
+daily_user_df  <-
+  calories_df %>% 
+  drop_na(Calories) %>%
+  group_by(user_id = Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(total_calories = sum(Calories))
+overview_df <- 
+  left_join(overview_df, daily_user_df, by=c("user_id","activity_date"))
+df_for_merging <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_calories = mean(total_calories))
+daily_average_df <- 
+  left_join(daily_average_df, df_for_merging, by=c("activity_date"))
+  
+
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/minuteIntensitiesNarrow_merged.csv")
+df$ActivityMinute <- as.Date(df$ActivityMinute, "%m/%d/%Y")
+intensities_df <- df %>%
+  rename(ActivityDate = ActivityMinute)
+daily_user_df <-
+  intensities_df %>%  
+  drop_na(Intensity) %>%
+  group_by(user_id = Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(total_intensity = sum(Intensity))
+overview_df <- 
+  left_join(overview_df, daily_user_df, by=c("user_id","activity_date"))
+df_for_merging <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_intensity = mean(total_intensity))
+daily_average_df <- 
+  left_join(daily_average_df, df_for_merging, by=c("activity_date"))
+
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/minuteStepsNarrow_merged.csv")
+df$ActivityMinute <- as.Date(df$ActivityMinute, "%m/%d/%Y")
+steps_df <- df %>%
+  rename(ActivityDate = ActivityMinute)
+daily_user_df <-
+  steps_df %>%  
+  drop_na(Steps) %>%
+  group_by(user_id =Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(total_steps = sum(Steps))
+overview_df <- 
+  left_join(overview_df, daily_user_df, by=c("user_id","activity_date"))
+df_for_merging <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_steps = mean(total_steps))
+daily_average_df <- 
+  left_join(daily_average_df, df_for_merging, by=c("activity_date"))
+
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/minuteMETsNarrow_merged.csv")
+df$ActivityMinute <- as.Date(df$ActivityMinute, "%m/%d/%Y")
+mets_df <- df %>%
+  rename(ActivityDate = ActivityMinute)
+daily_user_df <-
+  mets_df %>%  
+  drop_na(METs) %>%
+  group_by(user_id = Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(av_mets = mean(METs))
+overview_df <- 
+  left_join(overview_df, daily_user_df, by=c("user_id","activity_date"))
+df_for_merging <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_mets = mean(av_mets))
+daily_average_df <- 
+  left_join(daily_average_df, df_for_merging, by=c("activity_date"))
+
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/sleepDay_merged.csv")
+df$SleepDay <- as.Date(df$SleepDay, "%m/%d/%Y")
+sleep_df <- df %>%
+  rename(ActivityDate = SleepDay)
+daily_user_df <-
+  sleep_df %>%  
+  drop_na(TotalMinutesAsleep) %>%
+  group_by(user_id = Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(total_sleep = sum(TotalMinutesAsleep)/60)
+overview_df <- 
+  left_join(overview_df, daily_user_df, by=c("user_id","activity_date"))
+df_for_merging <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_sleep = mean(total_sleep))
+daily_average_df <- 
+  left_join(daily_average_df, df_for_merging, by=c("activity_date"))
+
+
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/heartrate_seconds_merged.csv")
+df$Time <- as.Date(df$Time, "%m/%d/%Y")
+heartrate_df <- df %>%
+  rename(ActivityDate = Time)
+daily_user_df <-
+  heartrate_df %>%  
+  drop_na(Value) %>%
+  group_by(user_id = Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(av_heartrate = mean(Value))
+overview_df <- 
+  left_join(overview_df, daily_user_df, by=c("user_id","activity_date"))
+df_for_merging <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_heartrate = mean(av_heartrate))
+daily_average_df <- 
+  left_join(daily_average_df, df_for_merging, by=c("activity_date"))
+
+df <- 
+  read.csv("../Fitabase Data 4.12.16-5.12.16/weightLogInfo_merged.csv")
+df$Date <- as.Date(df$Date, "%m/%d/%Y")
+weight_df <- df %>%
+  rename(ActivityDate = Date)
+weight_df <- weight_df[ -c(4,5,7,8)]
+daily_user_df <-
+  weight_df %>%  
+  drop_na(BMI) %>%
+  group_by(user_id = Id, activity_date = floor_date(ActivityDate, "day")) %>%
+  summarize(av_weight = mean(WeightKg), av_BMI = mean(BMI))
+overview_df <- 
+  left_join(overview_df, daily_user_df, by=c("user_id","activity_date"))
+df_for_merging <-
+  daily_user_df %>%
+  group_by(activity_date) %>%
+  summarize(av_weight = mean(av_weight), av_BMI = mean(av_BMI))
+daily_average_df <- 
+  left_join(daily_average_df, df_for_merging, by=c("activity_date"))
+
+
+```
+
+
+## Agenda
+
+* Business Task Summary
+* Available Smart Device Data
+* Activity Level Trend
+* Findings
+* Activity Level Metrics
+* Recommendation
+* Appendix 
+
+
+## Business Task Summary
+#### Identifying growth opportunities from trends
+
+__Bellabeat Company__
+
+* A high-tech manufacturer of health-focused products for women.
+* Products provide users information on activity, sleep, stress, menstrual cycle, and mindfulness habits. 
+
+__Business Task Summary__
+
+* This analysis should identify user trends from publicly available fitness smart device data to guide Bellabeat’s marketing strategy and unlock growth opportunities. 
+
+
+## Available Smart Device Data 
+#### Public Data from FitBit users was evaluated 
+
+* Public FitBit data not obtained directly by Bellabeat was used. 
+* 33 eligible Fitbit users consented to the use of 1 month of personal tracker information.
+* Data tracked included distance, steps, intensity, calories and METs.
+
+```{r Activity Charts, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Introductory chart to show the overview 
+# Initially wanted to start with a pie chart. 
+# However horizontal bar chart is an easier introductory chart IMO. 
+# piechart_df gets the column names and their number of values from the overview_df.
+# Additional formatting is done to use the appropriate names.
+
+piechart_df <- data.frame(t(colSums(!is.na(overview_df)))) %>%
+  select(-user_id, -activity_date) %>%
+  pivot_longer(cols = names(.))  %>% 
+  separate(name, into = c("alfa", "name"), sep ="_") %>%
+  select(name, value)
+
+piechart_df$name[1:8] <- str_to_title(piechart_df$name[1:8])
+piechart_df$name[5] <- "METs"
+
+piechart_df <- piechart_df %>% 
+  mutate(prop = value / sum(piechart_df$value) *100) %>%
+  mutate(prop_round = round(prop)) 
+
+# Commented out the pie chart as mentioned above. May be useful later. 
+
+# plot_ly(type='pie', labels=piechart_df$name , 
+#        values= piechart_df$prop_round, textinfo='label+percent',
+#        showlegend = FALSE, 
+#        textfont = list(size = 16),
+#        title = 'Average Usage of Fitbit Smart Device',
+#        titlefont = list(size =25))
+
+
+color = brewer.pal(length(piechart_df$name),"Set1")
+ggplot(piechart_df, aes(x = value, y = reorder(name, value))) +
+  geom_col(fill = color)+
+  theme(panel.background = element_rect(fill="white"),
+        axis.ticks = element_blank(),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("Total user records") + ylab("Metrics")+
+  labs(title = "Metrics Tracked by Users",
+       subtitle = "Total number of main metrics tracked daily for one month",
+       caption = "Public Domain, dataset made available through Mobius on Kaggle")
+
+
+```
+
+
+## Activity Level Trend
+### High threshold of activity maintained
+
+* Users consistently maintained a high level of activity for the period. 
+* For example, analysis revealed an average of above 7,500 steps per day. 
+* Similar performance levels are observed in other metrics e.g. METs, intensity, and sleep.
+
+```{r Step Chart with Trend, message=FALSE, warning=FALSE}
+
+# Used ggplot to for the steps chart. Added some annotations to emphasize the trend. 
+# Outlier is excluded because the last the day data is spurious for most metrics. 
+# Appendix shows the outlier. 
+
+
+
+daily_average_df %>%
+  filter(activity_date != max(activity_date)) %>%
+  ggplot(aes(x=activity_date, y=av_steps))+
+  geom_point(color="blue")+
+  ylim(0,9000)+
+  stat_smooth(method = "lm", se = FALSE)+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("Day") + ylab("Average number of steps")+
+  labs(title = " Daily Average Steps",
+       subtitle = "Mean number of steps logged by users daily",
+       caption = "Public Domain dataset made available through Mobius on Kaggle")+ 
+  annotate("segment", x = as.Date(c("2016-04-25")), xend = as.Date(c("2016-04-20")), 
+           y = 5000 , yend = 7400,
+           colour = "red", size=2, alpha=0.5, arrow=arrow())+
+  annotate("text", size=5, x = as.Date(c("2016-04-25"))+2, y = 5000-400, 
+           label = "Average performance trends above 7500 steps per day")
+
+```
+
+
+## Findings 
+### Calories strongly correlates with increased activity
+
+* Calories burned make up a large amount (~20%) of metrics logged by users.
+* And higher steps corresponds to higher calories burned. 
+ 
+```{r Calories,  message=FALSE, warning=FALSE}
+
+# Used plot_ly to generate a simple pie chart from the piechart_df
+# Used ggplot with annotations to show positive trend. 
+# Outlier is excluded because the last the day data is spurious for most metrics. 
+# Appendix shows the outlier. 
+
+name <- c(piechart_df$name[2], "Others")
+prop <- c(piechart_df$prop_round[2], 100-piechart_df$prop_round[2])
+df <- data.frame(name, prop)
+
+
+plot_ly(type='pie', labels=df$name, 
+        values= df$prop, textinfo='label+percent',
+        showlegend = FALSE, 
+        textfont = list(size = 25),
+        title = 'Calories Logged Compared to Other Metrics',
+        titlefont = list(size =25))
+
+daily_average_df %>%
+  filter(activity_date != max(activity_date)) %>%
+  ggplot(aes(x=av_steps, y=av_calories))+
+  geom_point(color="blue")+
+  stat_smooth(method = "lm", se = FALSE)+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("Steps") + ylab("Calories")+
+  labs(title = " Calories Per Steps",
+       subtitle = "Increase in steps with higher calories",
+       caption = "Public Domain, dataset made available through Mobius on Kaggle")+
+  annotate("segment", x = 6600, xend = 7800, 
+           y = 2330 , yend = 2430,
+           colour = "red", size=2, alpha=0.5, arrow=arrow())
+
+
+```
+
+
+## Activity Level Metrics
+### Strong positive correlation confirmed with calories
+
+* The positive relationship between calories burned and higher activity level is evident. 
+* This is confirmed with the other metrics such as distance, intensity and METs.  
+ 
+```{r Plotting the parameters, message=FALSE, warning=FALSE, fig.show="hold", out.width="50%", fig.cap="Public Domain dataset made available through Mobius on Kaggle. " }
+
+# Used ggplot to show matching trend of steps with calories, METs, and Intensity. 
+# Outlier is excluded because the last the day data is spurious for most metrics. 
+# Appendix shows the outlier. 
+
+daily_average_df %>%
+  filter(activity_date != max(activity_date)) %>%
+  ggplot(aes(x=av_distance, y=av_calories))+
+  geom_point(color="blue")+
+  stat_smooth(method = "lm", se = FALSE)+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("Distance") + ylab("Calories")+
+  labs(title = "Distance vs. Calories")
+
+daily_average_df %>%
+  filter(activity_date != max(activity_date)) %>%
+  ggplot(aes(x=av_intensity, y=av_calories))+
+  geom_point(color="blue")+
+  stat_smooth(method = "lm", se = FALSE)+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("Intensity") + ylab("Calories")+
+  labs(title = "Intensity vs. Calories")
+
+daily_average_df %>%
+  filter(activity_date != max(activity_date)) %>%
+  ggplot(aes(x=av_mets, y=av_calories))+
+  geom_point(color="blue")+
+  stat_smooth(method = "lm", se = FALSE)+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("METs") + ylab("Calories")+
+  labs(title = "METs vs. Calories")
+
+
+```
+
+
+## Recommendation
+### Way forward
+
+* Bellabeat’s marketing strategy should highlight the strong relationship between calories burned and high activity levels. 
+* Focus should also emphasize how Bellabeat product line can help track calories burned and activity levels with discreet fashionable products like Leaf and Time. 
+* Further analysis should be carried out with Bellabeat’s smart device fitness data over a longer period of time to confirm this and other trends with its target demographic. 
+
+
+## The End
+
+
+## Appendix
+### Outlier on the last day excluded from analysis
+
+```{r Showing outliers, message=FALSE, warning=FALSE, fig.show="hold", out.width="50%" }
+
+
+# Plotting identified parameters to identify outliers. 
+
+ggplot(data=daily_average_df)+
+  geom_point(mapping = aes(x=activity_date, y=av_calories), color="blue")+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  ggtitle("Daily Average Calories")+
+  xlab("Day") + ylab("Average calories per day")+
+  annotate("text", x = max(daily_average_df$activity_date)-2, y = 1220, label = "Outlier")
+
+ggplot(data=daily_average_df)+
+  geom_point(mapping = aes(x=activity_date, y=av_intensity), color="blue")+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  ggtitle("Daily Average Intensity")+
+  xlab("Day") + ylab("Average intensity per day")+
+  annotate("text", x = max(daily_average_df$activity_date)-2, y = 125, label = "Outlier")
+
+ggplot(data=daily_average_df)+
+  geom_point(mapping = aes(x=activity_date, y=av_steps), color="blue")+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  ggtitle("Daily Average Steps")+
+  xlab("Day") + ylab("Average number of steps")+
+  annotate("text", x = max(daily_average_df$activity_date)-2, y = 3600, label = "Outlier")
+
+
+ggplot(data=daily_average_df)+
+  geom_point(mapping = aes(x=activity_date, y=av_mets), color="blue")+
+  theme(panel.background = element_rect(fill="white", colour = "grey50"),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  ggtitle("Daily Average METs")+
+  xlab("Day") + ylab("Average METs (Active minutes)")+
+  annotate("text", x = max(daily_average_df$activity_date)-2, y = 13.35, label = "Outlier")
+
+
+
+```
+
+
