@@ -1,0 +1,196 @@
+---
+title: "NCDC Nigeria Covid Data Web Scrape"
+author: "pebosie"
+date: "1/29/2022"
+output:
+  ioslides_presentation:
+    widescreen: true
+    smaller: true
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+
+```{r Library Loading, results='hide', message=FALSE, echo = FALSE}
+# Loading the necessary packages. 
+
+library("rvest")
+library("tidyverse")
+library("readr")
+library("tidyverse")
+library("lubridate")
+library("janitor")
+library("dplyr")
+library("ggplot2")
+library("RColorBrewer")
+library("plotly")
+library("naijR")
+```
+
+
+
+```{r Data loading and cleaning, message=FALSE, echo=FALSE, results='hide'}
+# This section scrapes the data table and additional text from the website. 
+# Cleans the data to make it ROCCC.  
+# Text data is also parsed into a usable data frame
+
+# Reading the table. 
+url_data <- read_html("https://covid19.ncdc.gov.ng/")
+css_selector <- "#custom1"
+states_df <- url_data %>%
+  html_element(css=css_selector) %>%
+  html_table()
+states_df <- states_df %>%
+  rename(states_affected = `States Affected`,
+        lab_confirmed_cases = `No. of Cases (Lab Confirmed)`,
+        admission_cases =  `No. of Cases (on admission)`,
+        discharged =  `No. Discharged`,
+        deaths = `No. of Deaths`)
+states_df$lab_confirmed_cases <- as.integer(gsub(",","",states_df$lab_confirmed_cases)) 
+states_df$admission_cases <- as.integer(gsub(",","",states_df$admission_cases))
+states_df$discharged <- as.integer(gsub(",","",states_df$discharged)) 
+states_df$deaths <- as.integer(gsub(",","",states_df$deaths)) 
+
+
+
+# Reading additional text upate
+highlights_df <- url_data %>%
+  html_nodes(".temp") %>%
+  html_text()
+
+
+df <- url_data %>% 
+  html_nodes(".card-box")  %>% 
+  html_text()
+hl_df <- as.data.frame(str_split(df[1], "\n"))
+colnames(hl_df) <- c("Highlights")
+hl_df$Highlights <- trimws(hl_df$Highlights, which = c("both"))
+hl_arr <- hl_df[!apply(hl_df == "", 1, all), ]
+mon_arr <- array(month.name)
+month_match <- str_c(mon_arr, collapse = "|")
+date_sentence <- str_subset(hl_arr[1:3], month_match)
+matches <- str_extract(date_sentence, month_match)
+y_loc <- str_locate(date_sentence,matches)
+pub_date <- substr(date_sentence, start = y_loc[1,1]-8, stop = y_loc[1,2]+5)
+pub_date <- trimws(pub_date, which =c("both"))
+
+
+# Get the states that affected for that day.
+state_match <- states_df$states_affected
+state_match <- str_c(state_match, collapse = "|")
+news_sentence <- str_subset(hl_arr[3:5], state_match)
+States <- str_extract_all(news_sentence, state_match, simplify = TRUE)
+No_of_cases <- str_extract_all(news_sentence, "\\d+", simplify = TRUE)
+x <- length(States)
+y <- length(No_of_cases)
+No_of_cases <- No_of_cases[1,(y-x+1):y]
+covid_cases <- data.frame(New_states= t(States), No_of_cases)
+covid_cases$No_of_cases <- as.numeric(covid_cases$No_of_cases)
+
+states_df$states_affected <- gsub("FCT","Federal Capital Territory", states_df$states_affected)
+
+```
+
+## Project Objective
+
+* NCDC Nigeria provides daily [Covid updates](https://covid19.ncdc.gov.ng/report/ "NCDC Nigeria Covid Daily Report").
+* Online tables are easily downloaded with MS Excel.  
+* However, this presentation also shares the current tables and the latest "Highlights".  
+
+
+
+
+
+## Nigeria Covid-19 Status 
+
+
+* Largest number of cases are in country's main hubs.
+
+* States with the lowest number of cases also have low testing (not causation).
+
+
+```{r Cases Overview,  message=FALSE, warning=FALSE, echo = FALSE}
+
+ss <- states_df$states_affected
+nn <- states_df$lab_confirmed_cases
+bb <- c(0, 1000, 5000, 10000, 50000, 100000)
+cc <- c("< 1k","1k to 5k", "5k to 10k", "10k to 50k", "> 50k")
+dd <- paste("As reported by NCDC Nigeria on", pub_date)
+
+map_ng(region = ss, x = nn, breaks = bb, col = 'red', categories = cc, 
+       show.text = FALSE, title = "Distribution of Covid-19 Cases in Nigeria", 
+       caption = dd)
+
+```
+
+
+## Cases by States 
+
+* Lagos State has the highest number confirmed cases followed by the capital. 
+
+
+```{r Total Cases, message=FALSE, warning=FALSE, echo = FALSE}
+
+ggplot(states_df, aes(x = lab_confirmed_cases, y = reorder(states_affected, lab_confirmed_cases))) +
+  geom_col()+
+  theme(panel.background = element_rect(fill="white"),
+        axis.ticks = element_blank(),
+        axis.text = element_text(size=8),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("Number of lab. confirmed covid cases") + ylab("States")+
+  labs(title = "Total Number of Lab. Confirmed Covid Cases by States",
+       subtitle = "Official number of Covid-19 cases from inception",
+       caption = dd)
+```
+
+## Discharged vs. Admissions vs. Deaths Cases. 
+
+* Most of the officially confirmed cases were discharged. 
+
+```{r Official Deaths vs. Admissions vs. Discharge, message=FALSE, warning=FALSE, echo = FALSE}
+
+
+# Use this to show number of deaths vs. admissions vs discharge
+df <- states_df[,3:5] %>% summarize_all(sum) %>%
+  pivot_longer(cols = names(.))
+df$name <- str_to_title(df$name)
+
+plot_ly(type='pie', labels=df$name, 
+        values= df$value, textinfo='label+percent',
+        showlegend = FALSE, 
+        textfont = list(size = 16),
+        rotation = 90,
+        title = 'Discharged vs. Admissions vs. Deaths',
+        titlefont = list(size =25))
+```
+
+## Last Reported Number of Cases
+
+* Given below are the lastest official results released by the NCDC Nigeria. 
+
+```{r Last Reported Nummber of Cases, message=FALSE, warning=FALSE, echo = FALSE}
+
+# Show most recent number of cases
+ee <- paste("Confirmed cases on the", pub_date)
+
+# Show total number cases in the country
+ggplot(covid_cases, aes(x = No_of_cases, y = reorder(New_states, No_of_cases))) +
+  geom_col()+
+  theme(panel.background = element_rect(fill="white"),
+        axis.ticks = element_blank(),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=12, face="bold"))+
+  xlab("Number of lab. confirmed covid cases") + ylab("States")+
+  labs(title = ee,
+       subtitle = "Last official reported cases",
+       caption = dd)
+
+```
+
+
+## The End
